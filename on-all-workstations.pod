@@ -1,0 +1,51 @@
+Usage: /usr/local/bin/on-all-workstations [options] [workstations] -- command
+    -q              Quiet (do not print commands and machine names)
+    -s|--single     Output on a single line, with workstation name
+                    Turns on -q
+    -u user         Run commands as user
+    -W file|--wslist=file
+                    File with list of workstations, one per line
+                    Can contain blank lines or comments starting with #
+    -n|--not ws     Exclude workstation ws
+    -N file|--notlist=file
+                    Exclude workstations in this list
+    -S|--sort       Sort the workstation list
+    -h|--help       This help
+    [workstations]  Optionally specify workstations to operate on.
+    -r              Do the list in reverse.
+    -T              Don't allocate a tty.
+    --            "--" must be used to separate args and the command
+
+ Workstation lists are in /usr/local/etc/on-all-workstations
+ Workstation list defaults to /usr/local/etc/on-all-workstations/all
+ "-- command" must be supplied
+ Workstations can be specified as:
+   inside a file specified with -W
+   non-option arguments before the -- separator
+
+ Uses ssh, so if you have passwordless ssh logins for the right user, no
+ typing of passwords will be required.
+
+ BEWARE OF SHELL QUOTING IN YOUR COMMANDS.
+
+ Examples:
+
+  Run the hostname command on every workstation in your 'all' list:
+    on-all-workstations -- hostname
+
+  Install the foo package on two workstations:
+    on-all-workstations -u root wa-aifs-ws01 wa-aifs-ws02 -- yum install -y foo
+
+  Reboot all workstations in the RFC:
+    on-all-workstations -u root -W rfc -- shutdown -r now
+
+  Remove TIFS keys from all except the TIFS workstations:
+    on-all-workstations -u root -N tifs-keys -- yum erase -y TIFS-SSHKeys
+
+  Look for all aifs-gfe-client* packages on the RFC workstations:
+  The \| makes the pipe and grep run on the remote workstation, not locally:
+    on-all-workstations -u root -W rfc -- rpm -qa \| grep aifs-gfe-client
+
+  List the mozilla files and directories in /tmp:
+  The \* makes the wildcard expand on the remote workstation, not locally:
+    on-all-workstations -u root -- ls -ld /tmp/mozilla\*
