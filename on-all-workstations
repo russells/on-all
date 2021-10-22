@@ -1,0 +1,435 @@
+#!/bin/bash
+
+Version="$(basename $0) 1.5 2021-10-22"
+
+# A place to cache info under some circumstances.
+OutputCache=/tmp/$(basename $0)-$(date +%H%m%d-%H%M%S)-$(printf '%05d' $$)
+
+
+# WS is a plain array of workstation names.
+declare -a WS
+WS=( )
+
+# NotList is an associative array with indexes being workstation names.
+declare -A NotList
+NotList=( )
+
+# ListDir=/usr/local/etc/$(basename $0)
+ListDir=/usr/local/etc/on-all-workstations
+HomeListDir=${HOME}/etc/on-all-workstations
+
+function is_wslistfile_readable_file () {
+	local Fname
+	Fname="$1"
+	[ -e "$Fname" ] &&
+	[ -f "$Fname" ] &&
+	[ -r "$Fname" ]
+}
+
+function read_wslistfile () {
+	local Fname W REST
+	Fname="$1"
+	if is_wslistfile_readable_file "$Fname" ; then
+		:
+	elif is_wslistfile_readable_file "$HomeListDir/$Fname" ; then
+		Fname="$HomeListDir/$Fname"
+	elif is_wslistfile_readable_file "$ListDir/$Fname" ; then
+		Fname="$ListDir/$Fname"
+	else
+		echo >&2 "$0: workstation list \"$Fname\" does not exist"
+		exit 1
+	fi
+	if [ ! -r "$Fname" ] ; then
+		echo >&2 "$0: workstation list \"$Fname\" is not readable"
+		exit 1
+	fi
+	while read W REST ; do
+		case "$W" in
+		"") continue ;;
+		\#*) continue ;;
+		+*)
+			# Recursive ws lists
+			local WS2
+			WS2="$(echo "$W" | sed 's/+//')"
+			read_wslistfile "$WS2"
+			continue
+			;;
+		*) ;;
+		esac
+		WS=( "${WS[@]}" "$W" )
+	done < "$Fname"
+}
+
+
+function read_notlistfile () {
+	local Fname W REST
+	Fname="$1"
+	if [ -e "$Fname" ] ; then
+		:
+	elif [ -r "$ListDir/$Fname" ] ; then
+		Fname="$ListDir/$Fname"
+	else
+		echo >&2 "$0: workstation list \"$Fname\" does not exist"
+		exit 1
+	fi
+	if [ ! -r "$Fname" ] ; then
+		echo >&2 "$0: workstation list \"$Fname\" is not readable"
+		exit 1
+	fi
+	while read W REST ; do
+		case "$W" in
+		"") continue ;;
+		\#*) continue ;;
+		*) ;;
+		esac
+		NotList["$W"]="$W"
+	done < "$Fname"
+}
+
+
+function add_not_ws () {
+	NotList["$1"]="$1"
+}
+
+function add_ws () {
+	WS=( "${WS[@]}" "$1" )
+}
+
+
+function shortusage () {
+	Code="$1"
+	if [ z"$Code" != x0 -a x"$Code" != '' ] ; then
+		exec 1>&2
+	fi
+cat <<EOF
+Usage: $0 [options] [workstations] -- command
+"$(basename $0) -h" for help
+EOF
+	exit $1
+}
+
+
+function version () {
+	echo $Version
+	exit 0
+}
+
+function usage () {
+	Code="$1"
+	if [ z"$Code" != x0 -a x"$Code" != '' ] ; then
+		exec 1>&2
+	fi
+cat <<EOF
+
+Usage: $0 [options] [workstations] -- command
+    -q              Quiet (do not print commands and machine names)
+    -1|--single     Output on a single line, with workstation name
+                    Turns on -q
+    -u user         Run commands as user
+    -W file|--wslist=file
+                    File with list of workstations, one per line
+                    Can contain blank lines or comments starting with #
+    -n|--not ws     Exclude workstation ws
+    -N file|--notlist=file
+                    Exclude workstations in this list
+    -o sshoption    Add "-o sshoption" to the ssh command line
+    -s|--ssh-program=prog
+                    Use prog as ssh command (experimental)
+    -S|--sort       Sort the workstation list
+    -h|--help       This help
+    [workstations]  Optionally specify workstations to operate on
+    -r              Do the list in reverse
+    -T              Don't allocate a tty
+    -V|--version    Print version and exit
+    --            "--" must be used to separate args and the command
+
+ Workstation lists are in ${ListDir}
+ Workstation list defaults to ${ListDir}/all
+ "-- command" must be supplied
+ Workstations can be specified as:
+   inside a file specified with -W
+   non-option arguments before the -- separator
+
+ Uses ssh, so if you have passwordless ssh logins for the right user, no
+ typing of passwords will be required.
+
+ BEWARE OF SHELL QUOTING IN YOUR COMMANDS.
+
+ Examples:
+
+  Run the hostname command on every workstation in your 'all' list:
+    $(basename $0) -- hostname
+
+  Install the foo package on two workstations:
+    $(basename $0) -u root wa-aifs-ws01 wa-aifs-ws02 -- yum install -y foo
+
+  Reboot all workstations in the RFC:
+    $(basename $0) -u root -W rfc -- shutdown -r now
+
+  Remove TIFS keys from all except the TIFS workstations:
+    $(basename $0) -u root -N tifs-keys -- yum erase -y TIFS-SSHKeys
+
+  Look for all aifs-gfe-client* packages on the RFC workstations:
+  The \\| makes the pipe and grep run on the remote workstation, not locally:
+    $(basename $0) -u root -W rfc -- rpm -qa \\| grep aifs-gfe-client
+
+  List the mozilla files and directories in /tmp:
+  The \\* makes the wildcard expand on the remote workstation, not locally:
+    $(basename $0) -u root -- ls -ld /tmp/mozilla\\*
+
+EOF
+	exit $Code
+}
+
+
+Options=`getopt -o -1hqs:Su:W:n:N:rTo:V --long help,single,user:,quiet,ssh-program:,wslist:,not:,notlist:,sort,version \
+     -n "$(basename $0)" -- "$@"`
+if [ $? != 0 ] ; then echo "Terminating..." >&2 ; exit 1 ; fi
+
+# Note the quotes around `$TEMP': they are essential!
+eval set -- "$Options"
+
+OptSingle=
+OptUser=
+OptQuiet=
+SshAllocateTTY=yes
+SshFlags=( -q )
+SortFlag=
+ReverseFlag=
+NotList=( )
+SshProgram=ssh
+
+while true ; do
+	case "$1" in
+	-h|--help)
+		usage 0
+		break ;;
+	-1|--single)
+		#if [ -n "$OptVerbose" ] ; then
+		#	echo 1>&2 "$0: cannot set -s and -v"
+		#	exit 1
+		#fi
+		OptSingle=yes
+		OptQuiet=yes
+		SshFlags=( "${SshFlags[@]}" -q )
+		shift ;;
+	-u|--user)
+		OptUser="$2"
+		shift 2 ;;
+	-q|--quiet)
+		#if [ -n "$OptSingle" ] ; then
+		#	echo 1>&2 "$0: cannot set -s and -v"
+		#	exit 1
+		#fi
+		OptQuiet=yes
+		shift ;;
+	-W|--wslist)
+		read_wslistfile "$2"
+		shift 2 ;;
+	-n|--not)
+		add_not_ws "$2"
+		shift 2 ;;
+	-N|--notlist)
+		read_notlistfile "$2"
+		shift 2 ;;
+	-o)
+		SshFlags=( "${SshFlags[@]}" -o "$2" )
+		shift 2 ;;
+	-s|--ssh-program)
+		SshProgram="$2"
+		shift 2 ;;
+	-S|--sort)
+		SortFlag=yes
+		shift ;;
+	-r)
+		ReverseFlag=yes
+		shift ;;
+	-T)
+		SshAllocateTTY=no
+		shift ;;
+	-V|--version)
+		version # Doesn't return.
+		;;
+	--)
+		 shift ; break ;;
+	*)
+		add_ws "$1"
+		shift ;;
+	esac
+done
+
+if [ yes == "$SshAllocateTTY" ] ; then
+	SshFlags=( "${SshFlags[@]}" -t )
+else
+	SshFlags=( "${SshFlags[@]}" -T )
+fi
+
+if [ 0 -eq $# ] ; then
+	shortusage 1
+fi
+
+
+if [ 0 ==  ${#WS[*]} ] ; then
+	read_wslistfile "$ListDir"/all
+fi
+
+
+if [ -n "$OptUser" ] ; then
+	UserAt="$OptUser"@
+else
+	UserAt=
+fi
+
+WSFailList=( )
+WSSuccessList=( )
+WSNoConnectList=( )
+
+function print_results () {
+
+	if [ ${#WSSuccessList[*]} -ne 0 ] ; then
+		echo Succeeded "(${#WSSuccessList[*]})":
+		for W in "${WSSuccessList[@]}" ; do
+			printf '\t%s\n' "$W"
+		done
+	fi
+
+	if [ ${#WSFailList[*]} -ne 0 ] ; then
+		echo Failed "(${#WSFailList[*]})":
+		for W in "${WSFailList[@]}" ; do
+			printf '\t%s\n' "$W"
+		done
+	fi
+
+	if [ ${#WSNoConnectList[*]} -ne 0 ] ; then
+		echo No connection "(${#WSNoConnectList[*]})":
+		for W in "${WSNoConnectList[@]}" ; do
+			printf '\t%s\n' "$W"
+		done
+	fi
+}
+
+function print_short_results () {
+
+	if [ ${#WSSuccessList[*]} -ne 0 ] ; then
+		echo -n "Succeeded     (${#WSSuccessList[*]})":
+		for W in "${WSSuccessList[@]}" ; do
+			printf ' %s' "$W"
+		done
+		printf '\n'
+	fi
+
+	if [ ${#WSFailList[*]} -ne 0 ] ; then
+		echo "Failed        (${#WSFailList[*]})":
+		for W in "${WSFailList[@]}" ; do
+			printf ' %s' "$W"
+		done
+		printf '\n'
+	fi
+
+	if [ ${#WSNoConnectList[*]} -ne 0 ] ; then
+		echo "No connection (${#WSNoConnectList[*]})":
+		for W in "${WSNoConnectList[@]}" ; do
+			printf '\t%s\n' "$W"
+		done
+	fi
+}
+
+function print_nots () {
+	if [ ${#NotList[*]} -ne 0 ] ; then
+		echo "Not: (${#NotList[*]})"
+		for W in "${NotList[@]}" ; do
+			printf '\t%s\n' "$W"
+		done
+	fi
+}
+
+function reverse_list () {
+	#echo ${WS[*]}
+	local WS_
+	WS_=( )
+	# Copy the list into WS_.
+	for W in "${WS[@]}" ; do
+		WS_=( "${WS_[@]}" "$W" )
+	done
+	# Empty the list.
+	WS=( )
+	# Copy the list back, in reverse.
+	for W in "${WS_[@]}" ; do
+		WS=( "$W" "${WS[@]}" )
+	done
+	#echo ${WS[*]}
+}
+
+function sort_list () {
+	local WS_
+	WS_=( )
+	for W in "${WS[@]}" ; do
+		WS_=( "${WS_[@]}" "$W" )
+	done
+	WS=( )
+	# In here, and in reverse_list() above, we assume that each workstation
+	# name is a single word.
+	WS=( $(echo ${WS_[*]} | xargs -n1 | sort) )
+}
+
+if [ yes == "$SortFlag" ] ; then
+	sort_list
+fi
+
+if [ yes == "$ReverseFlag" ] ; then
+	reverse_list
+fi
+
+for W in "${WS[@]}" ; do
+	if [ -n "${NotList[$W]}" ] ; then
+		continue
+	fi
+	[ -z "$OptQuiet" ] && {
+		echo
+		echo '>>>>>>>>>>' $W
+		echo $SshProgram "${SshFlags[@]}" "$UserAt"$W $*
+	}
+	if [ -n "$OptSingle" ] ; then
+		printf '%-20s ' "$W"
+		set -o pipefail
+		$SshProgram "${SshFlags[@]}" "${UserAt}${W}" "$@" 2>&1 | tee ${OutputCache}
+		SSHCode=$?
+		set +o pipefail
+		if [ $(wc -l < ${OutputCache}) -eq 0 ] ; then
+			if [ "$SSHCode" -eq 255 ] ; then
+				echo '(No connection)'
+			else
+				echo
+			fi
+		fi
+	else
+		$SshProgram "${SshFlags[@]}" "${UserAt}${W}" "$@"
+		SSHCode=$?
+	fi
+
+	case $SSHCode in
+	0)
+		WSSuccessList=( "${WSSuccessList[@]}" $W )
+		;;
+	255)
+		WSNoConnectList=( "${WSNoConnectList[@]}" $W )
+		;;
+	*)
+		WSFailList=( "${WSFailList[@]}" $W )
+	esac
+	[ -z "$OptQuiet" ] && {
+		echo '<<<<<<<<<<' $W
+		echo
+	}
+	[ -z "$OptQuiet" -a -z "$OptSingle" ] && {
+		print_results
+	}
+done
+
+if [ -z "$OptQuiet" ] ; then
+	print_results
+else
+	print_nots
+fi
+
+
