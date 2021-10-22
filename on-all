@@ -15,8 +15,8 @@ declare -A NotList
 NotList=( )
 
 # ListDir=/usr/local/etc/$(basename $0)
-ListDir=/usr/local/etc/on-all-workstations
-HomeListDir=${HOME}/etc/on-all-workstations
+ListDir=/usr/local/etc/on-all
+HomeListDir=${HOME}/etc/on-all
 
 function is_wslistfile_readable_file () {
 	local Fname
