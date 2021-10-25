@@ -1,0 +1,478 @@
+#!/bin/bash
+
+VersionName=on-all
+VersionNumber=1.5
+VersionDate=2021-10-22
+
+Version="$(basename $0) $VersionNumber $VersionDate"
+
+# A place to cache info under some circumstances.
+OutputCache=/tmp/$(basename $0)-$(date +%H%m%d-%H%M%S)-$(printf '%05d' $$)
+
+
+# Hosts is a plain array of host names.
+declare -a Hosts
+Hosts=( )
+
+declare -a NotList
+NotList=( )
+
+# ListDir=/usr/local/etc/$(basename $0)
+ListDir=/usr/local/etc/on-all
+HomeListDir=${HOME}/etc/on-all
+
+function is_hostlistfile_readable_file () {
+	local Fname
+	Fname="$1"
+	[ -e "$Fname" ] &&
+	[ -f "$Fname" ] &&
+	[ -r "$Fname" ]
+}
+
+function read_hostlistfile () {
+	local Fname H REST
+	Fname="$1"
+	if is_hostlistfile_readable_file "$Fname" ; then
+		:
+	elif is_hostlistfile_readable_file "$HomeListDir/$Fname" ; then
+		Fname="$HomeListDir/$Fname"
+	elif is_hostlistfile_readable_file "$ListDir/$Fname" ; then
+		Fname="$ListDir/$Fname"
+	else
+		echo >&2 "$0: host list \"$Fname\" does not exist"
+		exit 1
+	fi
+	if [ ! -r "$Fname" ] ; then
+		echo >&2 "$0: host list \"$Fname\" is not readable"
+		exit 1
+	fi
+	while read H REST ; do
+		case "$H" in
+		"") continue ;;
+		\#*) continue ;;
+		+*)
+			# Recursive ws lists
+			local Hosts2
+			Hosts2="$(echo "$H" | sed 's/+//')"
+			read_hostlistfile "$Hosts2"
+			continue
+			;;
+		*) ;;
+		esac
+		Hosts=( "${Hosts[@]}" "$H" )
+	done < "$Fname"
+}
+
+
+function read_notlistfile () {
+	local Fname H REST
+	Fname="$1"
+	if is_hostlistfile_readable_file "$Fname" ; then
+		:
+	elif is_hostlistfile_readable_file "$HomeListDir/$Fname" ; then
+		Fname="$HomeListDir/$Fname"
+	elif is_hostlistfile_readable_file "$ListDir/$Fname" ; then
+		Fname="$ListDir/$Fname"
+	else
+		echo >&2 "$0: not host list \"$Fname\" does not exist"
+		exit 1
+	fi
+	if [ ! -r "$Fname" ] ; then
+		echo >&2 "$0: not host list \"$Fname\" is not readable"
+		exit 1
+	fi
+	while read H REST ; do
+		case "$H" in
+		"") continue ;;
+		\#*) continue ;;
+		*) ;;
+		esac
+		NotList=( "${NotList[@]}" "$H" )
+	done < "$Fname"
+}
+
+
+function add_not_ws () {
+	NotList=( "${NotList[@]}" "$1" )
+}
+
+function add_ws () {
+	Hosts=( "${Hosts[@]}" "$1" )
+}
+
+
+function shortusage () {
+	Code="$1"
+	if [ z"$Code" != x0 -a x"$Code" != '' ] ; then
+		exec 1>&2
+	fi
+cat <<EOF
+Usage: $0 [options] [hosts] -- command
+"$(basename $0) -h" for help
+EOF
+	exit $1
+}
+
+
+function version () {
+	echo $Version
+	exit 0
+}
+
+function usage () {
+	Code="$1"
+	if [ z"$Code" != x0 -a x"$Code" != '' ] ; then
+		exec 1>&2
+	fi
+cat <<EOF
+
+Usage: $0 [options] [hosts] -- command
+    -h|--help       This help
+    -V|--version    Print version and exit
+    -1|--single     Output on a single line, with host name
+                    Turns on -q
+    -H file|--hostlist=file
+                    File with list of hosts, one per line
+    -n h|--not h    Exclude host h
+    -N file|--notlist=file
+                    Exclude hosts in this list
+    -o sshoption    Add "-o sshoption" to the ssh command line
+    -q              Quiet (do not print commands and machine names)
+    -s prog|--ssh-program=prog
+                    Use prog as ssh command (experimental)
+    -S|--sort       Sort the host list
+    -r              Do the list in reverse
+    -T              Don't allocate a tty
+    -u user         Run commands as user
+    -W file|--hostlist=file
+                    Same as -H (deprecated)
+    [hosts]         Optionally specify hosts to operate on - if none
+                    specified and no list specified, defaults to the
+                    "all" list
+    --              "--" must be used to separate options, host names,
+                    and the command
+
+ Hosts can be specified as:
+   - non-option arguments before the -- separator, or
+   - inside a host list file specified with -H.
+ Host lists are in . or ${HomeListDir} or ${ListDir}.
+ Host lists can contain blank lines or comments starting with #.
+ Host list defaults to all.
+ "-- command" must be supplied
+EOF
+
+#  Uses ssh, so if you have passwordless ssh logins for the right user, no
+#  typing of passwords will be required.
+
+#  BEWARE OF SHELL QUOTING IN YOUR COMMANDS.
+
+#  Examples:
+
+#   Run the hostname command on every host in your 'all' list:
+#     $(basename $0) -- hostname
+
+#   Install the foo package on two hosts:
+#     $(basename $0) -u root ws1 ws2 -- yum install -y foo
+
+#   Reboot all hosts in the office:
+#     $(basename $0) -u root -H office -- shutdown -r now
+
+#   Remove apackage from all except the important hosts:
+#     $(basename $0) -u root -N important -- yum erase -y apackage
+
+#   Look for all foo* packages on the remote-office hosts:
+#   The \\| makes the pipe and grep run on the remote hosts, not locally:
+#     $(basename $0) -u root -H remote-office -- rpm -qa \\| grep foo
+
+#   List the mozilla files and directories in /tmp:
+#   The \\* makes the wildcard expand on the remote hosts, not locally:
+#     $(basename $0) -u root -- ls -ld /tmp/mozilla\\*
+
+# EOF
+	exit $Code
+}
+
+
+Options=`getopt -o -1hH:qs:Su:W:n:N:rTo:V \
+--long help,single,user:,quiet,ssh-program:,hostlist:,wslist:,not:,notlist:,sort,version \
+-n "$(basename $0)" -- "$@"`
+if [ $? != 0 ] ; then echo "Terminating..." >&2 ; exit 1 ; fi
+
+# Note the quotes around `$TEMP': they are essential!
+eval set -- "$Options"
+
+OptSingle=
+OptUser=
+OptQuiet=
+SshAllocateTTY=yes
+SshFlags=( -q )
+SortFlag=
+ReverseFlag=
+NotList=( )
+SshProgram=ssh
+
+while true ; do
+	case "$1" in
+	-h|--help)
+		usage 0
+		break ;;
+	-1|--single)
+		#if [ -n "$OptVerbose" ] ; then
+		#	echo 1>&2 "$0: cannot set -s and -v"
+		#	exit 1
+		#fi
+		OptSingle=yes
+		OptQuiet=yes
+		SshFlags=( "${SshFlags[@]}" -q )
+		shift ;;
+	-u|--user)
+		OptUser="$2"
+		shift 2 ;;
+	-q|--quiet)
+		#if [ -n "$OptSingle" ] ; then
+		#	echo 1>&2 "$0: cannot set -s and -v"
+		#	exit 1
+		#fi
+		OptQuiet=yes
+		shift ;;
+	-H|--hostlist|-W|--wslist)
+		read_hostlistfile "$2"
+		shift 2 ;;
+	-n|--not)
+		add_not_ws "$2"
+		shift 2 ;;
+	-N|--notlist)
+		read_notlistfile "$2"
+		shift 2 ;;
+	-o)
+		SshFlags=( "${SshFlags[@]}" -o "$2" )
+		shift 2 ;;
+	-s|--ssh-program)
+		SshProgram="$2"
+		shift 2 ;;
+	-S|--sort)
+		SortFlag=yes
+		shift ;;
+	-r)
+		ReverseFlag=yes
+		shift ;;
+	-T)
+		SshAllocateTTY=no
+		shift ;;
+	-V|--version)
+		version # Doesn't return.
+		;;
+	--)
+		 shift ; break ;;
+	*)
+		add_ws "$1"
+		shift ;;
+	esac
+done
+
+if [ yes == "$SshAllocateTTY" ] ; then
+	SshFlags=( "${SshFlags[@]}" -t )
+else
+	SshFlags=( "${SshFlags[@]}" -T )
+fi
+
+if [ 0 -eq $# ] ; then
+	shortusage 1
+fi
+
+
+if [ 0 ==  ${#Hosts[*]} ] ; then
+	read_hostlistfile all
+fi
+
+
+if [ -n "$OptUser" ] ; then
+	UserAt="$OptUser"@
+else
+	UserAt=
+fi
+
+HostsFailList=( )
+HostsSuccessList=( )
+HostsNoConnectList=( )
+
+function print_results () {
+
+	if [ ${#HostsSuccessList[*]} -ne 0 ] ; then
+		echo Succeeded "(${#HostsSuccessList[*]})":
+		for H in "${HostsSuccessList[@]}" ; do
+			printf '\t%s\n' "$H"
+		done
+	fi
+
+	if [ ${#HostsFailList[*]} -ne 0 ] ; then
+		echo Failed "(${#HostsFailList[*]})":
+		for H in "${HostsFailList[@]}" ; do
+			printf '\t%s\n' "$H"
+		done
+	fi
+
+	if [ ${#HostsNoConnectList[*]} -ne 0 ] ; then
+		echo No connection "(${#HostsNoConnectList[*]})":
+		for H in "${HostsNoConnectList[@]}" ; do
+			printf '\t%s\n' "$H"
+		done
+	fi
+}
+
+function print_short_results () {
+
+	if [ ${#HostsSuccessList[*]} -ne 0 ] ; then
+		echo -n "Succeeded     (${#HostsSuccessList[*]})":
+		for H in "${HostsSuccessList[@]}" ; do
+			printf ' %s' "$H"
+		done
+		printf '\n'
+	fi
+
+	if [ ${#HostsFailList[*]} -ne 0 ] ; then
+		echo "Failed        (${#HostsFailList[*]})":
+		for H in "${HostsFailList[@]}" ; do
+			printf ' %s' "$H"
+		done
+		printf '\n'
+	fi
+
+	if [ ${#HostsNoConnectList[*]} -ne 0 ] ; then
+		echo "No connection (${#HostsNoConnectList[*]})":
+		for H in "${HostsNoConnectList[@]}" ; do
+			printf '\t%s\n' "$H"
+		done
+	fi
+}
+
+function print_nots () {
+	if [ ${#NotList[*]} -ne 0 ] ; then
+		echo "Not: (${#NotList[*]})"
+		for H in "${NotList[@]}" ; do
+			printf '\t%s\n' "$H"
+		done
+	fi
+}
+
+function reverse_list () {
+	#echo ${Hosts[*]}
+	local Hosts_
+	Hosts_=( )
+	# Copy the list into Hosts_.
+	for H in "${Hosts[@]}" ; do
+		Hosts_=( "${Hosts_[@]}" "$H" )
+	done
+	# Empty the list.
+	Hosts=( )
+	# Copy the list back, in reverse.
+	for H in "${Hosts_[@]}" ; do
+		Hosts=( "$H" "${Hosts[@]}" )
+	done
+	#echo ${Hosts[*]}
+}
+
+function sort_list () {
+	local Hosts_
+	Hosts_=( )
+	for H in "${Hosts[@]}" ; do
+		Hosts_=( "${Hosts_[@]}" "$H" )
+	done
+	Hosts=( )
+	Hosts=( $(echo ${Hosts_[*]} | xargs -n1 | sort) )
+}
+
+function sort_notlist () {
+	local Not_
+	Not_=( )
+	for H in "${NotList[@]}" ; do
+		Not_=( "${Not_[@]}" "$H" )
+	done
+	NotList=( )
+	NotList=( $(echo ${Not_[*]} | xargs -n1 | sort) )
+}
+
+function is_host_in_notlist () {
+	local N
+	N="$1"
+	for H in "${NotList[@]}" ; do
+		if [ x"$N" == x"$H" ] ; then
+			return 0
+		fi
+	done
+	return 1
+}
+
+if [ yes == "$SortFlag" ] ; then
+	sort_list
+	sort_notlist
+fi
+
+if [ yes == "$ReverseFlag" ] ; then
+	reverse_list
+fi
+
+## echo len=${#Hosts[*]} hosts="${Hosts[@]}" not="${NotList[@]}"
+if [ 0 -eq "${#Hosts[@]}" ] ; then
+	echo No hosts to run on.
+	exit 0
+fi
+
+HostsRun=0
+for H in "${Hosts[@]}" ; do
+	if is_host_in_notlist "$H" ] ; then
+		continue
+	fi
+	[ -z "$OptQuiet" ] && {
+		echo
+		echo '>>>>>>>>>>' $H
+		echo $SshProgram "${SshFlags[@]}" "$UserAt"$H $*
+	}
+	if [ -n "$OptSingle" ] ; then
+		printf '%-20s ' "$H"
+		set -o pipefail
+		$SshProgram "${SshFlags[@]}" "${UserAt}${H}" "$@" 2>&1 | tee ${OutputCache}
+		SSHCode=$?
+		set +o pipefail
+		if [ $(wc -l < ${OutputCache}) -eq 0 ] ; then
+			if [ "$SSHCode" -eq 255 ] ; then
+				echo '(No connection)'
+			else
+				echo
+			fi
+		fi
+	else
+		$SshProgram "${SshFlags[@]}" "${UserAt}${H}" "$@"
+		SSHCode=$?
+	fi
+
+	HostsRun=$(( HostsRun + 1 ))
+
+	case $SSHCode in
+	0)
+		HostsSuccessList=( "${HostsSuccessList[@]}" $H )
+		;;
+	255)
+		HostsNoConnectList=( "${HostsNoConnectList[@]}" $H )
+		;;
+	*)
+		HostsFailList=( "${HostsFailList[@]}" $H )
+	esac
+	[ -z "$OptQuiet" ] && {
+		echo '<<<<<<<<<<' $H
+		echo
+	}
+	[ -z "$OptQuiet" -a -z "$OptSingle" ] && {
+		print_results
+	}
+done
+
+if [ 0 -eq $HostsRun ] ; then
+	echo No hosts run.
+fi
+
+if [ -z "$OptQuiet" ] ; then
+	print_nots
+fi
+
+
