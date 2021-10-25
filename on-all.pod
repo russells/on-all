@@ -39,6 +39,12 @@ made to enforce this.
 
 Run on the hosts specified in F<hostlistfile>.
 
+=item -L | --list-only
+
+List the hosts that we would run the command on (after removing the hosts
+from the C<-n> and C<-N> options), but do not run any commands.  The C<-->
+option and the command are not required in this case.
+
 =item -n host | --not host
 
 Do not run on C<host>. This is useful when hostnames are read from a

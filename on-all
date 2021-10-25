@@ -1,8 +1,8 @@
 #!/bin/bash
 
 VersionName=on-all
-VersionNumber=1.5
-VersionDate=2021-10-22
+VersionNumber=1.6
+VersionDate=2021-10-25
 
 Version="$(basename $0) $VersionNumber $VersionDate"
 
@@ -108,6 +108,7 @@ function shortusage () {
 	fi
 cat <<EOF
 Usage: $0 [options] [hosts] -- command
+       $0 [options] [hosts] -L
 "$(basename $0) -h" for help
 EOF
 	exit $1
@@ -127,12 +128,15 @@ function usage () {
 cat <<EOF
 
 Usage: $0 [options] [hosts] -- command
+       $0 [options] [hosts] -L
     -h|--help       This help
     -V|--version    Print version and exit
     -1|--single     Output on a single line, with host name
                     Turns on -q
     -H file|--hostlist=file
                     File with list of hosts, one per line
+    -L|--list-only  List hosts from files, do not run command - the
+                    command is not required here.
     -n h|--not h    Exclude host h
     -N file|--notlist=file
                     Exclude hosts in this list
@@ -193,8 +197,8 @@ EOF
 }
 
 
-Options=`getopt -o -1hH:qs:Su:W:n:N:rTo:V \
---long help,single,user:,quiet,ssh-program:,hostlist:,wslist:,not:,notlist:,sort,version \
+Options=`getopt -o -1hH:Lqs:Su:W:n:N:rTo:V \
+--long help,single,user:,quiet,ssh-program:,hostlist:,wslist:,not:,notlist:,sort,version,list-only \
 -n "$(basename $0)" -- "$@"`
 if [ $? != 0 ] ; then echo "Terminating..." >&2 ; exit 1 ; fi
 
@@ -204,6 +208,7 @@ eval set -- "$Options"
 OptSingle=
 OptUser=
 OptQuiet=
+OptListOnly=
 SshAllocateTTY=yes
 SshFlags=( -q )
 SortFlag=
@@ -238,6 +243,9 @@ while true ; do
 	-H|--hostlist|-W|--wslist)
 		read_hostlistfile "$2"
 		shift 2 ;;
+	-L|--list-only)
+		OptListOnly=yes
+		shift ;;
 	-n|--not)
 		add_not_ws "$2"
 		shift 2 ;;
@@ -274,10 +282,6 @@ if [ yes == "$SshAllocateTTY" ] ; then
 	SshFlags=( "${SshFlags[@]}" -t )
 else
 	SshFlags=( "${SshFlags[@]}" -T )
-fi
-
-if [ 0 -eq $# ] ; then
-	shortusage 1
 fi
 
 
@@ -383,7 +387,7 @@ function sort_list () {
 }
 
 function sort_notlist () {
-	local Not_
+	local H Not_
 	Not_=( )
 	for H in "${NotList[@]}" ; do
 		Not_=( "${Not_[@]}" "$H" )
@@ -393,9 +397,9 @@ function sort_notlist () {
 }
 
 function is_host_in_notlist () {
-	local N
-	N="$1"
-	for H in "${NotList[@]}" ; do
+	local H N
+	H="$1"
+	for N in "${NotList[@]}" ; do
 		if [ x"$N" == x"$H" ] ; then
 			return 0
 		fi
@@ -410,6 +414,22 @@ fi
 
 if [ yes == "$ReverseFlag" ] ; then
 	reverse_list
+fi
+
+# Don't do anything, just list.
+if [ yes == "$OptListOnly" ] ; then
+	for H in "${Hosts[@]}" ; do
+		if is_host_in_notlist "$H" ; then
+			continue
+		fi
+		echo "$H"
+	done
+	exit
+fi
+
+# Check for something to do on each host.
+if [ 0 -eq $# ] ; then
+	shortusage 1
 fi
 
 ## echo len=${#Hosts[*]} hosts="${Hosts[@]}" not="${NotList[@]}"
