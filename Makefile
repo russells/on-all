@@ -8,6 +8,13 @@ VersionDate   := $(shell grep ^VersionDate   $(PROG) | sed 's/.*=//')
 .PHONY: all
 all: man pdf
 
+.PHONY: install
+install: man
+	install -d ~/bin
+	install -m 755 -t ~/bin $(PROG)
+	install -d ~/share/man/man1
+	install -m 644 -t ~/share/man/man1 $(PROG).1
+
 .PHONY: man
 man: $(PROG).1
 $(PROG).1: $(PROG).pod

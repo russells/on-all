@@ -18,16 +18,15 @@ be individually excluded from the list.
 
 ## Installation
 
-Run `make`.
+Run `make install`.
 
-Copy the **on-all** script somewhere in your path.  Copy `on-all.1` to
-somewhere that man(1) can find it.
-
-Complete installation process to be written.
+This will copy the **on-all** script to ${HOME}/bin, and copy `on-all.1` to
+${HOME}/share/man/man1, where hopefully man(1) can find it.
 
 ## TODO
 
-- [ ] Installation.
+- [ ] Better installation.
+- [X] Installation.
 - [ ] Show what host list file(s) will be read.
 
 ## Author
