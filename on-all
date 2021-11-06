@@ -407,36 +407,61 @@ function is_host_in_notlist () {
 	return 1
 }
 
-if [ yes == "$SortFlag" ] ; then
-	sort_list
-	sort_notlist
-fi
 
-if [ yes == "$ReverseFlag" ] ; then
-	reverse_list
-fi
+function maybe_sort () {
+	if [ yes == "$SortFlag" ] ; then
+		sort_list
+		sort_notlist
+	fi
+}
 
-# Don't do anything, just list.
-if [ yes == "$OptListOnly" ] ; then
-	for H in "${Hosts[@]}" ; do
-		if is_host_in_notlist "$H" ; then
-			continue
-		fi
-		echo "$H"
-	done
-	exit
-fi
 
-# Check for something to do on each host.
-if [ 0 -eq $# ] ; then
-	shortusage 1
-fi
+function maybe_reverse () {
+	if [ yes == "$ReverseFlag" ] ; then
+		reverse_list
+	fi
+}
 
-## echo len=${#Hosts[*]} hosts="${Hosts[@]}" not="${NotList[@]}"
-if [ 0 -eq "${#Hosts[@]}" ] ; then
-	echo No hosts to run on.
-	exit 0
-fi
+
+function maybe_listonly () {
+	# Don't do anything, just list.
+	local H
+	if [ yes == "$OptListOnly" ] ; then
+		for H in "${Hosts[@]}" ; do
+			if is_host_in_notlist "$H" ; then
+				continue
+			fi
+			echo "$H"
+		done
+		exit
+	fi
+}
+
+
+function check_for_command () {
+	# Check for something to do on each host.
+	if [ 0 -eq $# ] ; then
+		echo 1>&2 $0: No command
+		shortusage 1
+	fi
+}
+
+
+function check_for_hosts () {
+	## echo len=${#Hosts[*]} hosts="${Hosts[@]}" not="${NotList[@]}"
+	if [ 0 -eq "${#Hosts[@]}" ] ; then
+		echo No hosts to run on.
+		exit 0
+	fi
+}
+
+
+maybe_sort
+maybe_reverse
+maybe_listonly
+check_for_command "$@"
+check_for_hosts
+
 
 HostsRun=0
 for H in "${Hosts[@]}" ; do
