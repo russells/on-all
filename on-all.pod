@@ -35,6 +35,12 @@ For each host, print the host name, then the output from the remote command
 on the same line.  We assume the output is a single line - no attempt is
 made to enforce this.
 
+=item -F|--files
+
+Print the names of the host list files, and if specified, the files
+specified by C<-N>.  Do not run any commands, and do not check that a
+command is specified.
+
 =item -H hostlistfile | --hostlist hostlistfile
 
 Run on the hosts specified in F<hostlistfile>.

@@ -13,9 +13,13 @@ OutputCache=/tmp/$(basename $0)-$(date +%H%m%d-%H%M%S)-$(printf '%05d' $$)
 # Hosts is a plain array of host names.
 declare -a Hosts
 Hosts=( )
+declare -a HostListFilenames
+HostListFilenames=( )
 
 declare -a NotList
 NotList=( )
+declare -a NotListFilenames
+NotListFilenames=( )
 
 # ListDir=/usr/local/etc/$(basename $0)
 ListDir=/usr/local/etc/on-all
@@ -29,14 +33,28 @@ function is_hostlistfile_readable_file () {
 	[ -r "$Fname" ]
 }
 
+
+function add_hostlistfilename () {
+	HostListFilenames=( "${HostListFilenames[@]}" "$1" )
+}
+
+
+function add_notlistfilename () {
+	NotListFilenames=( "${NotListFilenames[@]}" "$1" )
+}
+
+
 function read_hostlistfile () {
 	local Fname H REST
 	Fname="$1"
 	if is_hostlistfile_readable_file "$Fname" ; then
+		add_hostlistfilename "$Fname"
 		:
 	elif is_hostlistfile_readable_file "$HomeListDir/$Fname" ; then
+		add_hostlistfilename "$HomeListDir/$Fname"
 		Fname="$HomeListDir/$Fname"
 	elif is_hostlistfile_readable_file "$ListDir/$Fname" ; then
+		add_hostlistfilename "$ListDir/$Fname"
 		Fname="$ListDir/$Fname"
 	else
 		echo >&2 "$0: host list \"$Fname\" does not exist"
@@ -68,10 +86,13 @@ function read_notlistfile () {
 	local Fname H REST
 	Fname="$1"
 	if is_hostlistfile_readable_file "$Fname" ; then
+		add_notlistfilename "$Fname"
 		:
 	elif is_hostlistfile_readable_file "$HomeListDir/$Fname" ; then
+		add_notlistfilename "$HomeListDir/$Fname"
 		Fname="$HomeListDir/$Fname"
 	elif is_hostlistfile_readable_file "$ListDir/$Fname" ; then
+		add_notlistfilename "$ListDir/$Fname"
 		Fname="$ListDir/$Fname"
 	else
 		echo >&2 "$0: not host list \"$Fname\" does not exist"
@@ -92,12 +113,53 @@ function read_notlistfile () {
 }
 
 
+function show_hostlistfilenames () {
+	local H
+	if [ 0 -lt "${#HostListFilenames[*]}" ] ; then
+		printf 'Include:'
+		for H in "${HostListFilenames[@]}" ; do
+			printf ' %s' "$H"
+		done
+		printf '\n'
+	else
+		printf 'Include: (none)\n'
+	fi
+	if [ 0 -lt "${#NotListFilenames[*]}" ] ; then
+		printf 'Not:'
+		for H in "${NotListFilenames[@]}" ; do
+			printf ' %s' "$H"
+		done
+		printf '\n'
+	fi
+	exit
+}
+
+
 function add_not_ws () {
-	NotList=( "${NotList[@]}" "$1" )
+	local N
+	N="$1"
+	if ! is_host_in_notlist "$N" ; then
+		NotList=( "${NotList[@]}" "$N" )
+	fi
+}
+
+function is_host_in_list () {
+	local H hh
+	H="$1"
+	for hh in "${Hosts[@]}" ; do
+		if [ x"$H" == x"$hh" ] ; then
+			return 0
+		fi
+	done
+	return 1
 }
 
 function add_ws () {
-	Hosts=( "${Hosts[@]}" "$1" )
+	local H
+	H="$1"
+	if ! is_host_in_list "$H" ; then
+		Hosts=( "${Hosts[@]}" "$H" )
+	fi
 }
 
 
@@ -133,6 +195,7 @@ Usage: $0 [options] [hosts] -- command
     -V|--version    Print version and exit
     -1|--single     Output on a single line, with host name
                     Turns on -q
+    -F|--files      Show which list files are read
     -H file|--hostlist=file
                     File with list of hosts, one per line
     -L|--list-only  List hosts from files, do not run command - the
@@ -197,8 +260,8 @@ EOF
 }
 
 
-Options=`getopt -o -1hH:Lqs:Su:W:n:N:rTo:V \
---long help,single,user:,quiet,ssh-program:,hostlist:,wslist:,not:,notlist:,sort,version,list-only \
+Options=`getopt -o -1FhH:Lqs:Su:W:n:N:rTo:V \
+--long help,single,user:,files,quiet,ssh-program:,hostlist:,wslist:,not:,notlist:,sort,version,list-only \
 -n "$(basename $0)" -- "$@"`
 if [ $? != 0 ] ; then echo "Terminating..." >&2 ; exit 1 ; fi
 
@@ -208,12 +271,12 @@ eval set -- "$Options"
 OptSingle=
 OptUser=
 OptQuiet=
+OptFiles=
 OptListOnly=
 SshAllocateTTY=yes
 SshFlags=( -q )
 SortFlag=
 ReverseFlag=
-NotList=( )
 SshProgram=ssh
 
 while true ; do
@@ -239,6 +302,9 @@ while true ; do
 		#	exit 1
 		#fi
 		OptQuiet=yes
+		shift ;;
+	-F|--files)
+		OptFiles=yes
 		shift ;;
 	-H|--hostlist|-W|--wslist)
 		read_hostlistfile "$2"
@@ -285,7 +351,7 @@ else
 fi
 
 
-if [ 0 ==  ${#Hosts[*]} ] ; then
+if [ 0 ==  ${#HostListFilenames[*]} ] ; then
 	read_hostlistfile all
 fi
 
@@ -396,6 +462,7 @@ function sort_notlist () {
 	NotList=( $(echo ${Not_[*]} | xargs -n1 | sort) )
 }
 
+
 function is_host_in_notlist () {
 	local H N
 	H="$1"
@@ -456,6 +523,14 @@ function check_for_hosts () {
 }
 
 
+function maybe_show_files () {
+	if [ xyes == x"$OptFiles" ] ; then
+		show_hostlistfilenames
+	fi
+}
+
+
+maybe_show_files
 maybe_sort
 maybe_reverse
 maybe_listonly
