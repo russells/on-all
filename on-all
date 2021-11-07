@@ -351,7 +351,7 @@ else
 fi
 
 
-if [ 0 ==  ${#HostListFilenames[*]} ] ; then
+if [ 0 -eq ${#HostListFilenames[*]} -a 0 -eq ${#Hosts[*]} ] ; then
 	read_hostlistfile all
 fi
 
