@@ -135,6 +135,18 @@ function show_hostlistfilenames () {
 }
 
 
+function is_host_in_notlist () {
+	local H N
+	H="$1"
+	for N in "${NotList[@]}" ; do
+		if [ x"$N" == x"$H" ] ; then
+			return 0
+		fi
+	done
+	return 1
+}
+
+
 function add_not_ws () {
 	local N
 	N="$1"
@@ -267,6 +279,8 @@ if [ $? != 0 ] ; then echo "Terminating..." >&2 ; exit 1 ; fi
 
 # Note the quotes around `$TEMP': they are essential!
 eval set -- "$Options"
+
+echo -- $*
 
 OptSingle=
 OptUser=
@@ -460,18 +474,6 @@ function sort_notlist () {
 	done
 	NotList=( )
 	NotList=( $(echo ${Not_[*]} | xargs -n1 | sort) )
-}
-
-
-function is_host_in_notlist () {
-	local H N
-	H="$1"
-	for N in "${NotList[@]}" ; do
-		if [ x"$N" == x"$H" ] ; then
-			return 0
-		fi
-	done
-	return 1
 }
 
 
