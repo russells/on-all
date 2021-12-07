@@ -131,7 +131,6 @@ function show_hostlistfilenames () {
 		done
 		printf '\n'
 	fi
-	exit
 }
 
 
@@ -492,18 +491,15 @@ function maybe_reverse () {
 }
 
 
-function maybe_listonly () {
+function list_only () {
 	# Don't do anything, just list.
 	local H
-	if [ yes == "$OptListOnly" ] ; then
-		for H in "${Hosts[@]}" ; do
-			if is_host_in_notlist "$H" ; then
-				continue
-			fi
-			echo "$H"
-		done
-		exit
-	fi
+	for H in "${Hosts[@]}" ; do
+		if is_host_in_notlist "$H" ; then
+			continue
+		fi
+		echo "$H"
+	done
 }
 
 
@@ -525,17 +521,23 @@ function check_for_hosts () {
 }
 
 
-function maybe_show_files () {
+function maybe_show_files_or_list_only () {
 	if [ xyes == x"$OptFiles" ] ; then
 		show_hostlistfilenames
+	fi
+	if [ xyes == x"$OptListOnly" ] ; then
+		list_only
+	fi
+	# If either or both, exit.
+	if [ xyes == x"$OptFiles" -o xyes == x"$OptListOnly" ] ; then
+		exit
 	fi
 }
 
 
-maybe_show_files
 maybe_sort
 maybe_reverse
-maybe_listonly
+maybe_show_files_or_list_only
 check_for_command "$@"
 check_for_hosts
 
