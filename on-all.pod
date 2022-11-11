@@ -72,6 +72,12 @@ Do not print the host summary after each host.
 
 Do the list in reverse order.
 
+=item -R [name] | --record=[name]
+
+Record success in C<name.success>, failure in C<name.failure> and no connection
+in C<name.noconnect>.  If C<name> is not supplied, use
+C<on-all.YYYYmmdd-HHMMSS.success> etc.
+
 =item -s prog | --ssh-program prog
 
 Use C<prog> instead of ssh. (experimental)

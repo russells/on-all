@@ -220,6 +220,8 @@ Usage: $0 [options] [hosts] -- command
                     Use prog as ssh command (experimental)
     -S|--sort       Sort the host list
     -r              Do the list in reverse
+    -R[name]|--record[=name]
+                    Record success, failure, and no connection, in files.
     -T              Don't allocate a tty
     -u user         Run commands as user
     -W file|--hostlist=file
@@ -271,8 +273,8 @@ EOF
 }
 
 
-Options=`getopt -o -1FhH:Lqs:Su:W:n:N:rTo:V \
---long help,single,user:,files,quiet,ssh-program:,hostlist:,wslist:,not:,notlist:,sort,version,list-only \
+Options=`getopt -s bash -o -1FhH:Lqs:Su:W:n:N:rR::To:V \
+--long help,single,user:,files,quiet,ssh-program:,hostlist:,wslist:,not:,notlist:,record::,sort,version,list-only \
 -n "$(basename $0)" -- "$@"`
 if [ $? != 0 ] ; then echo "Terminating..." >&2 ; exit 1 ; fi
 
@@ -286,6 +288,9 @@ OptUser=
 OptQuiet=
 OptFiles=
 OptListOnly=
+OptRecordSuccess=
+OptRecordFailure=
+OptRecordNoConnection=
 SshAllocateTTY=yes
 SshFlags=( -q )
 SortFlag=
@@ -334,14 +339,29 @@ while true ; do
 	-o)
 		SshFlags=( "${SshFlags[@]}" -o "$2" )
 		shift 2 ;;
+	-r)
+		ReverseFlag=yes
+		shift ;;
+	-R|--record)
+		if [ -z "$2" ] ; then
+			OptRecord_dt=`date +%Y%m%d-%H%M%S`
+			OptRecordSuccess=`basename $0`.${OptRecord_dt}.success
+			OptRecordFailure=`basename $0`.${OptRecord_dt}.failure
+			OptRecordNoConnection=`basename $0`.${OptRecord_dt}.noconnection
+		else
+			OptRecordSuccess="$2".success
+			OptRecordFailure="$2".failure
+			OptRecordNoConnection="$2".noconnection
+		fi
+		echo \# Success > "$OptRecordSuccess"
+		echo \# Failure > "$OptRecordFailure"
+		echo \# No connect > "$OptRecordNoConnection"
+		shift 2 ;;
 	-s|--ssh-program)
 		SshProgram="$2"
 		shift 2 ;;
 	-S|--sort)
 		SortFlag=yes
-		shift ;;
-	-r)
-		ReverseFlag=yes
 		shift ;;
 	-T)
 		SshAllocateTTY=no
@@ -575,12 +595,21 @@ for H in "${Hosts[@]}" ; do
 	case $SSHCode in
 	0)
 		HostsSuccessList=( "${HostsSuccessList[@]}" $H )
+		if [ -n "$OptRecordSuccess" ] ; then
+			echo "$H" >> "$OptRecordSuccess"
+		fi
 		;;
 	255)
 		HostsNoConnectList=( "${HostsNoConnectList[@]}" $H )
+		if [ -n "$OptRecordNoConnection" ] ; then
+			echo "$H" >> "$OptRecordNoConnection"
+		fi
 		;;
 	*)
 		HostsFailList=( "${HostsFailList[@]}" $H )
+		if [ -n "$OptRecordFailure" ] ; then
+			echo "$H" >> "$OptRecordFailure"
+		fi
 	esac
 	[ -z "$OptQuiet" ] && {
 		echo '<<<<<<<<<<' $H
