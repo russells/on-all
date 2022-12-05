@@ -1,0 +1,6 @@
+From: Russell Steicke <russells@adelie.cx>
+Subject: SSH batch mode.
+
+Mainly to disable all password prompts.
+
+Signed-off-by: Russell Steicke <russells@adelie.cx>
