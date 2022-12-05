@@ -35,6 +35,11 @@ For each host, print the host name, then the output from the remote command
 on the same line.  We assume the output is a single line - no attempt is
 made to enforce this.
 
+=item -B|--batch-mode
+
+Enable SSH batch mode by adding C<-o BatchMode=yes> to the ssh command line.
+The main intention of this is to suppress all password or passhprase prompts.
+
 =item -F|--files
 
 Print the names of the host list files, and if specified, the files

@@ -206,6 +206,7 @@ Usage: $0 [options] [hosts] -- command
     -V|--version    Print version and exit
     -1|--single     Output on a single line, with host name
                     Turns on -q
+    -B|--batch-mode Enable ssh batch mode (-o BatchMode)
     -F|--files      Show which list files are read
     -H file|--hostlist=file
                     File with list of hosts, one per line
@@ -273,8 +274,8 @@ EOF
 }
 
 
-Options=`getopt -s bash -o -1FhH:Lqs:Su:W:n:N:rR::To:V \
---long help,single,user:,files,quiet,ssh-program:,hostlist:,wslist:,not:,notlist:,record::,sort,version,list-only \
+Options=`getopt -s bash -o -1BFhH:Lqs:Su:W:n:N:rR::To:V \
+--long help,single,batch-mode,user:,files,quiet,ssh-program:,hostlist:,wslist:,not:,notlist:,record::,sort,version,list-only \
 -n "$(basename $0)" -- "$@"`
 if [ $? != 0 ] ; then echo "Terminating..." >&2 ; exit 1 ; fi
 
@@ -284,6 +285,7 @@ eval set -- "$Options"
 ## echo -- $*
 
 OptSingle=
+OptBatchMode=
 OptUser=
 OptQuiet=
 OptFiles=
@@ -310,6 +312,10 @@ while true ; do
 		OptSingle=yes
 		OptQuiet=yes
 		SshFlags=( "${SshFlags[@]}" -q )
+		shift ;;
+	-B|--batch-mode)
+		OptBatchMode=yes
+		SshFlags=( "${SshFlags[@]}" -o BatchMode=yes )
 		shift ;;
 	-u|--user)
 		OptUser="$2"
