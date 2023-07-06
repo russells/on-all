@@ -273,9 +273,43 @@ EOF
 }
 
 
-Options=`getopt -s bash -o -1FhH:Lqs:Su:W:n:N:rR::To:V \
---long help,single,user:,files,quiet,ssh-program:,hostlist:,wslist:,not:,notlist:,record::,sort,version,list-only \
--n "$(basename $0)" -- "$@"`
+ShortOpts="-"
+ShortOpts="${ShortOpts}1"
+ShortOpts="${ShortOpts}F"
+ShortOpts="${ShortOpts}h"
+ShortOpts="${ShortOpts}H:"
+ShortOpts="${ShortOpts}L"
+ShortOpts="${ShortOpts}q"
+ShortOpts="${ShortOpts}s:"
+ShortOpts="${ShortOpts}S"
+ShortOpts="${ShortOpts}u:"
+ShortOpts="${ShortOpts}W:"
+ShortOpts="${ShortOpts}n:"
+ShortOpts="${ShortOpts}N:"
+ShortOpts="${ShortOpts}r"
+ShortOpts="${ShortOpts}R::"
+ShortOpts="${ShortOpts}T"
+ShortOpts="${ShortOpts}o:"
+ShortOpts="${ShortOpts}V"
+
+LongOpts="help"
+LongOpts="${LongOpts},single"
+LongOpts="${LongOpts},user:"
+LongOpts="${LongOpts},files"
+LongOpts="${LongOpts},quiet"
+LongOpts="${LongOpts},ssh-program"
+LongOpts="${LongOpts},hostlist"
+LongOpts="${LongOpts},wslist"
+LongOpts="${LongOpts},not:"
+LongOpts="${LongOpts},notlist:"
+LongOpts="${LongOpts},record::"
+LongOpts="${LongOpts},sort"
+LongOpts="${LongOpts},version"
+LongOpts="${LongOpts},list-only"
+
+Options=`getopt -s bash -o "${ShortOpts}" \
+	--long "${LongOpts}" \
+	-n "$(basename $0)" -- "$@"`
 if [ $? != 0 ] ; then echo "Terminating..." >&2 ; exit 1 ; fi
 
 # Note the quotes around `$TEMP': they are essential!
