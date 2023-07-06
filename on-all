@@ -208,6 +208,7 @@ Usage: $0 [options] [hosts] -- command
                     Turns on -q
     -B|--batch-mode Enable ssh batch mode (-o BatchMode)
     -F|--files      Show which list files are read
+    --final-summary Print summary at the end (even if --no-summary)
     -H file|--hostlist=file
                     File with list of hosts, one per line
     -L|--list-only  List hosts from files, do not run command - the
@@ -215,6 +216,7 @@ Usage: $0 [options] [hosts] -- command
     -n h|--not h    Exclude host h
     -N file|--notlist=file
                     Exclude hosts in this list
+    --no-summary    Don't print host summary after each host
     -o sshoption    Add "-o sshoption" to the ssh command line
     -q              Quiet (do not print commands and machine names)
     -s prog|--ssh-program=prog
@@ -274,9 +276,47 @@ EOF
 }
 
 
-Options=`getopt -s bash -o -1BFhH:Lqs:Su:W:n:N:rR::To:V \
---long help,single,batch-mode,user:,files,quiet,ssh-program:,hostlist:,wslist:,not:,notlist:,record::,sort,version,list-only \
--n "$(basename $0)" -- "$@"`
+ShortOpts="-"
+ShortOpts="${ShortOpts}1"
+ShortOpts="${ShortOpts}B"
+ShortOpts="${ShortOpts}F"
+ShortOpts="${ShortOpts}h"
+ShortOpts="${ShortOpts}H:"
+ShortOpts="${ShortOpts}L"
+ShortOpts="${ShortOpts}q"
+ShortOpts="${ShortOpts}s:"
+ShortOpts="${ShortOpts}S"
+ShortOpts="${ShortOpts}u:"
+ShortOpts="${ShortOpts}W:"
+ShortOpts="${ShortOpts}n:"
+ShortOpts="${ShortOpts}N:"
+ShortOpts="${ShortOpts}r"
+ShortOpts="${ShortOpts}R::"
+ShortOpts="${ShortOpts}T"
+ShortOpts="${ShortOpts}o:"
+ShortOpts="${ShortOpts}V"
+
+LongOpts="help"
+LongOpts="${LongOpts},single"
+LongOpts="${LongOpts},user:"
+LongOpts="${LongOpts},batch-mode"
+LongOpts="${LongOpts},files"
+LongOpts="${LongOpts},quiet"
+LongOpts="${LongOpts},ssh-program"
+LongOpts="${LongOpts},hostlist"
+LongOpts="${LongOpts},wslist"
+LongOpts="${LongOpts},not:"
+LongOpts="${LongOpts},notlist:"
+LongOpts="${LongOpts},final-summary"
+LongOpts="${LongOpts},no-summary"
+LongOpts="${LongOpts},record::"
+LongOpts="${LongOpts},sort"
+LongOpts="${LongOpts},version"
+LongOpts="${LongOpts},list-only"
+
+Options=`getopt -s bash -o "${ShortOpts}" \
+	--long "${LongOpts}" \
+	-n "$(basename $0)" -- "$@"`
 if [ $? != 0 ] ; then echo "Terminating..." >&2 ; exit 1 ; fi
 
 # Note the quotes around `$TEMP': they are essential!
@@ -289,7 +329,9 @@ OptBatchMode=
 OptUser=
 OptQuiet=
 OptFiles=
+OptFinalSummary=
 OptListOnly=
+OptNoSummary=
 OptRecordSuccess=
 OptRecordFailure=
 OptRecordNoConnection=
@@ -330,6 +372,9 @@ while true ; do
 	-F|--files)
 		OptFiles=yes
 		shift ;;
+	--final-summary)
+		OptFinalSummary=yes
+		shift ;;
 	-H|--hostlist|-W|--wslist)
 		read_hostlistfile "$2"
 		shift 2 ;;
@@ -342,6 +387,9 @@ while true ; do
 	-N|--notlist)
 		read_notlistfile "$2"
 		shift 2 ;;
+	--no-summary)
+		OptNoSummary=yes
+		shift ;;
 	-o)
 		SshFlags=( "${SshFlags[@]}" -o "$2" )
 		shift 2 ;;
@@ -621,13 +669,17 @@ for H in "${Hosts[@]}" ; do
 		echo '<<<<<<<<<<' $H
 		echo
 	}
-	[ -z "$OptQuiet" -a -z "$OptSingle" ] && {
+	[ -z "$OptQuiet" -a -z "$OptSingle" -a -z "$OptNoSummary" ] && {
 		print_results
 	}
 done
 
 if [ 0 -eq $HostsRun ] ; then
 	echo No hosts run.
+fi
+
+if [ -n "$OptFinalSummary" -a ! -z "$OptNoSummary" ] ; then
+	print_results
 fi
 
 if [ -z "$OptQuiet" ] ; then
