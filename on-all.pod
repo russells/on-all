@@ -46,6 +46,11 @@ Print the names of the host list files, and if specified, the files
 specified by C<-N>.  Do not run any commands, and do not check that a
 command is specified.
 
+=item --final-summary
+
+Print the host summary after the last host is run, even if C<--no-summary>
+is specified.
+
 =item -H hostlistfile | --hostlist hostlistfile
 
 Run on the hosts specified in F<hostlistfile>.
@@ -64,6 +69,11 @@ hostlistfile, and we want to exclude one or some of them.
 =item -N hostlistfile | --not-list hostlistfile
 
 Do not run on hosts specified in F<hostlistfile>.
+
+=item --no-summary
+
+Don't print the host summary after each host is run.  But see also
+C<--final-summary>.
 
 =item -o option | --ssh-option option
 
