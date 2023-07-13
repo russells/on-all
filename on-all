@@ -275,6 +275,10 @@ EOF
 }
 
 
+# Record our command line before we change it for getopt.
+OriginalOpts=( "$@" )
+
+
 ShortOpts="-"
 ShortOpts="${ShortOpts}1"
 ShortOpts="${ShortOpts}F"
@@ -399,9 +403,15 @@ while true ; do
 			OptRecordFailure="$2".failure
 			OptRecordNoConnection="$2".noconnection
 		fi
-		echo \# Success > "$OptRecordSuccess"
-		echo \# Failure > "$OptRecordFailure"
-		echo \# No connect > "$OptRecordNoConnection"
+		echo '#' Success                     > "$OptRecordSuccess"
+		echo '#' "$OptRecord_dt"            >> "$OptRecordSuccess"
+		echo '##' "$0" "${OriginalOpts[@]}" >> "$OptRecordSuccess"
+		echo '#' Failure                     > "$OptRecordFailure"
+		echo '#' "$OptRecord_dt"            >> "$OptRecordFailure"
+		echo '##' "$0" "${OriginalOpts[@]}" >> "$OptRecordFailure"
+		echo '#' No connect                  > "$OptRecordNoConnection"
+		echo '#' "$OptRecord_dt"            >> "$OptRecordNoConnection"
+		echo '##' "$0" "${OriginalOpts[@]}" >> "$OptRecordNoConnection"
 		shift 2 ;;
 	-s|--ssh-program)
 		SshProgram="$2"
