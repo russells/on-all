@@ -1,13 +1,13 @@
 #!/bin/bash
 
-VersionName=on-all
+#VersionName=on-all
 VersionNumber=1.6
 VersionDate=2021-10-25
-
-Version="$(basename $0) $VersionNumber $VersionDate"
+Basename_0="$(basename "$0")"
+Version="$Basename_0 $VersionNumber $VersionDate"
 
 # A place to cache info under some circumstances.
-OutputCache=/tmp/$(basename $0)-$(date +%H%m%d-%H%M%S)-$(printf '%05d' $$)
+OutputCache=/tmp/${Basename_0}-$(date +%H%m%d-%H%M%S)-$(printf '%05d' $$)
 
 
 # Hosts is a plain array of host names.
@@ -21,7 +21,7 @@ NotList=( )
 declare -a NotListFilenames
 NotListFilenames=( )
 
-# ListDir=/usr/local/etc/$(basename $0)
+# ListDir=/usr/local/etc/${Basename_0}
 ListDir=/usr/local/etc/on-all
 HomeListDir=${HOME}/etc/on-all
 
@@ -64,14 +64,14 @@ function read_hostlistfile () {
 		echo >&2 "$0: host list \"$Fname\" is not readable"
 		exit 1
 	fi
-	while read H REST ; do
+	while read -r H REST ; do
 		case "$H" in
 		"") continue ;;
 		\#*) continue ;;
 		+*)
 			# Recursive ws lists
 			local Hosts2
-			Hosts2="$(echo "$H" | sed 's/+//')"
+			Hosts2="${H//+/}"
 			read_hostlistfile "$Hosts2"
 			continue
 			;;
@@ -102,7 +102,7 @@ function read_notlistfile () {
 		echo >&2 "$0: not host list \"$Fname\" is not readable"
 		exit 1
 	fi
-	while read H REST ; do
+	while read -r H REST ; do
 		case "$H" in
 		"") continue ;;
 		\#*) continue ;;
@@ -176,26 +176,26 @@ function add_ws () {
 
 function shortusage () {
 	Code="$1"
-	if [ z"$Code" != x0 -a x"$Code" != '' ] ; then
+	if [ x"$Code" != x0 ] && [ x"$Code" != x'' ] ; then
 		exec 1>&2
 	fi
 cat <<EOF
 Usage: $0 [options] [hosts] -- command
        $0 [options] [hosts] -L
-"$(basename $0) -h" for help
+"${Basename_0} -h" for help
 EOF
-	exit $1
+	exit "$1"
 }
 
 
 function version () {
-	echo $Version
+	echo "$Version"
 	exit 0
 }
 
 function usage () {
 	Code="$1"
-	if [ z"$Code" != x0 -a x"$Code" != '' ] ; then
+	if [ x"$Code" != x0 ] && [ x"$Code" != x'' ] ; then
 		exec 1>&2
 	fi
 cat <<EOF
@@ -251,27 +251,27 @@ EOF
 #  Examples:
 
 #   Run the hostname command on every host in your 'all' list:
-#     $(basename $0) -- hostname
+#     ${Basename_0}- hostname
 
 #   Install the foo package on two hosts:
-#     $(basename $0) -u root ws1 ws2 -- yum install -y foo
+#     ${Basename_0} -u root ws1 ws2 -- yum install -y foo
 
 #   Reboot all hosts in the office:
-#     $(basename $0) -u root -H office -- shutdown -r now
+#     ${Basename_0} -u root -H office -- shutdown -r now
 
 #   Remove apackage from all except the important hosts:
-#     $(basename $0) -u root -N important -- yum erase -y apackage
+#     ${Basename_0} -u root -N important -- yum erase -y apackage
 
 #   Look for all foo* packages on the remote-office hosts:
 #   The \\| makes the pipe and grep run on the remote hosts, not locally:
-#     $(basename $0) -u root -H remote-office -- rpm -qa \\| grep foo
+#     ${Basename_0} -u root -H remote-office -- rpm -qa \\| grep foo
 
 #   List the mozilla files and directories in /tmp:
 #   The \\* makes the wildcard expand on the remote hosts, not locally:
-#     $(basename $0) -u root -- ls -ld /tmp/mozilla\\*
+#     ${Basename_0} -u root -- ls -ld /tmp/mozilla\\*
 
 # EOF
-	exit $Code
+	exit "$Code"
 }
 
 
@@ -315,9 +315,9 @@ LongOpts="${LongOpts},sort"
 LongOpts="${LongOpts},version"
 LongOpts="${LongOpts},list-only"
 
-Options=`getopt -s bash -o "${ShortOpts}" \
+Options=$(getopt -s bash -o "${ShortOpts}" \
 	--long "${LongOpts}" \
-	-n "$(basename $0)" -- "$@"`
+	-n "${Basename_0}" -- "$@")
 if [ $? != 0 ] ; then echo "Terminating..." >&2 ; exit 1 ; fi
 
 # Note the quotes around `$TEMP': they are essential!
@@ -344,8 +344,7 @@ SshProgram=ssh
 while true ; do
 	case "$1" in
 	-h|--help)
-		usage 0
-		break ;;
+		usage 0 ;; # Does not return.
 	-1|--single)
 		#if [ -n "$OptVerbose" ] ; then
 		#	echo 1>&2 "$0: cannot set -s and -v"
@@ -394,10 +393,10 @@ while true ; do
 		shift ;;
 	-R|--record)
 		if [ -z "$2" ] ; then
-			OptRecord_dt=`date +%Y%m%d-%H%M%S`
-			OptRecordSuccess=`basename $0`.${OptRecord_dt}.success
-			OptRecordFailure=`basename $0`.${OptRecord_dt}.failure
-			OptRecordNoConnection=`basename $0`.${OptRecord_dt}.noconnection
+			OptRecord_dt=$(date +%Y%m%d-%H%M%S)
+			OptRecordSuccess="${Basename_0}.${OptRecord_dt}.success"
+			OptRecordFailure="${Basename_0}.${OptRecord_dt}.failure"
+			OptRecordNoConnection="${Basename_0}.${OptRecord_dt}.noconnection"
 		else
 			OptRecordSuccess="$2".success
 			OptRecordFailure="$2".failure
@@ -440,7 +439,7 @@ else
 fi
 
 
-if [ 0 -eq ${#HostListFilenames[*]} -a 0 -eq ${#Hosts[*]} ] ; then
+if [ 0 -eq ${#HostListFilenames[*]} ] && [ 0 -eq ${#Hosts[*]} ] ; then
 	read_hostlistfile all
 fi
 
@@ -538,7 +537,12 @@ function sort_list () {
 		Hosts_=( "${Hosts_[@]}" "$H" )
 	done
 	Hosts=( )
-	Hosts=( $(echo ${Hosts_[*]} | xargs -n1 | sort) )
+	mapfile -t Hosts < <( for H in "${Hosts_[@]}"
+				do echo "$H"
+			      done | xargs -d '\n' -n1 | sort)
+echo "${A[@]}"
+for a in "${A[@]}" ; do echo "$a" ; done
+
 }
 
 function sort_notlist () {
@@ -548,7 +552,9 @@ function sort_notlist () {
 		Not_=( "${Not_[@]}" "$H" )
 	done
 	NotList=( )
-	NotList=( $(echo ${Not_[*]} | xargs -n1 | sort) )
+	mapfile -t NotList < <( for H in "${Not_[@]}"
+				  do echo "$H"
+				done | xargs -d '\n' -n1 | sort)
 }
 
 
@@ -582,7 +588,7 @@ function list_only () {
 function check_for_command () {
 	# Check for something to do on each host.
 	if [ 0 -eq $# ] ; then
-		echo 1>&2 $0: No command
+		echo 1>&2 "$0": No command
 		shortusage 1
 	fi
 }
@@ -605,7 +611,7 @@ function maybe_show_files_or_list_only () {
 		list_only
 	fi
 	# If either or both, exit.
-	if [ xyes == x"$OptFiles" -o xyes == x"$OptListOnly" ] ; then
+	if [ xyes == x"$OptFiles" ] || [ xyes == x"$OptListOnly" ] ; then
 		exit
 	fi
 }
@@ -620,21 +626,21 @@ check_for_hosts
 
 HostsRun=0
 for H in "${Hosts[@]}" ; do
-	if is_host_in_notlist "$H" ] ; then
+	if is_host_in_notlist "$H" ; then
 		continue
 	fi
 	[ -z "$OptQuiet" ] && {
 		echo
-		echo '>>>>>>>>>>' $H
-		echo $SshProgram "${SshFlags[@]}" "$UserAt"$H $*
+		echo '>>>>>>>>>>' "$H"
+		echo "$SshProgram" "${SshFlags[@]}" "$UserAt$H" "$*"
 	}
 	if [ -n "$OptSingle" ] ; then
 		printf '%-20s ' "$H"
 		set -o pipefail
-		$SshProgram "${SshFlags[@]}" "${UserAt}${H}" "$@" 2>&1 | tee ${OutputCache}
+		"$SshProgram" "${SshFlags[@]}" "${UserAt}${H}" "$@" 2>&1 | tee "${OutputCache}"
 		SSHCode=$?
 		set +o pipefail
-		if [ $(wc -l < ${OutputCache}) -eq 0 ] ; then
+		if [ "$(wc -l < "${OutputCache}")" -eq 0 ] ; then
 			if [ "$SSHCode" -eq 255 ] ; then
 				echo '(No connection)'
 			else
@@ -642,7 +648,7 @@ for H in "${Hosts[@]}" ; do
 			fi
 		fi
 	else
-		$SshProgram "${SshFlags[@]}" "${UserAt}${H}" "$@"
+		"$SshProgram" "${SshFlags[@]}" "${UserAt}${H}" "$@"
 		SSHCode=$?
 	fi
 
@@ -650,37 +656,37 @@ for H in "${Hosts[@]}" ; do
 
 	case $SSHCode in
 	0)
-		HostsSuccessList=( "${HostsSuccessList[@]}" $H )
+		HostsSuccessList=( "${HostsSuccessList[@]}" "$H" )
 		if [ -n "$OptRecordSuccess" ] ; then
 			echo "$H" >> "$OptRecordSuccess"
 		fi
 		;;
 	255)
-		HostsNoConnectList=( "${HostsNoConnectList[@]}" $H )
+		HostsNoConnectList=( "${HostsNoConnectList[@]}" "$H" )
 		if [ -n "$OptRecordNoConnection" ] ; then
 			echo "$H" >> "$OptRecordNoConnection"
 		fi
 		;;
 	*)
-		HostsFailList=( "${HostsFailList[@]}" $H )
+		HostsFailList=( "${HostsFailList[@]}" "$H" )
 		if [ -n "$OptRecordFailure" ] ; then
 			echo "$H" >> "$OptRecordFailure"
 		fi
 	esac
 	[ -z "$OptQuiet" ] && {
-		echo '<<<<<<<<<<' $H
+		echo '<<<<<<<<<<' "$H"
 		echo
 	}
-	[ -z "$OptQuiet" -a -z "$OptSingle" -a -z "$OptNoSummary" ] && {
+	[ -z "$OptQuiet" ] && [ -z "$OptSingle" ] && [ -z "$OptNoSummary" ] && {
 		print_results
 	}
 done
 
-if [ 0 -eq $HostsRun ] ; then
+if [ 0 -eq "$HostsRun" ] ; then
 	echo No hosts run.
 fi
 
-if [ -n "$OptFinalSummary" -a ! -z "$OptNoSummary" ] ; then
+if [ -n "$OptFinalSummary" ] && [ -n "$OptNoSummary" ] ; then
 	print_results
 fi
 

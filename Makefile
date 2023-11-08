@@ -8,6 +8,12 @@ VersionDate   := $(shell grep ^VersionDate   $(PROG) | sed 's/.*=//')
 .PHONY: all
 all: man pdf
 
+.PHONY: shellcheck
+# SC2268 (style): Avoid x-prefix in comparisons
+# SC2181 (style): Check exit code directly
+shellcheck:
+	shellcheck -e SC2268,SC2181 on-all
+
 .PHONY: install
 install: man
 	install -d ~/bin
