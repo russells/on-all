@@ -540,9 +540,6 @@ function sort_list () {
 	mapfile -t Hosts < <( for H in "${Hosts_[@]}"
 				do echo "$H"
 			      done | xargs -d '\n' -n1 | sort)
-echo "${A[@]}"
-for a in "${A[@]}" ; do echo "$a" ; done
-
 }
 
 function sort_notlist () {
