@@ -1,4 +1,7 @@
 From: Russell Steicke <russells@adelie.cx>
 Subject: Rename source to on-all.sh. Install as on-all.
 
+This gives a chance to make other changes to the on-all during the
+installation process.
+
 Signed-off-by: Russell Steicke <russells@adelie.cx>
