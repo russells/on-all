@@ -15,7 +15,9 @@ all: $(PROG) man pdf
 shellcheck:
 	shellcheck -e SC2268,SC2181 on-all
 
-on_all: on-all
+on-all: on-all.sh Makefile
+	cp on-all.sh on-all
+	chmod +x on-all
 
 .PHONY: install
 install: man
