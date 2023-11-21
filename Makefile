@@ -1,18 +1,21 @@
 # Make on-all.
 
+SRC = on-all.sh
 PROG = on-all
 
-VersionNumber := $(shell grep ^VersionNumber $(PROG) | sed 's/.*=//')
-VersionDate   := $(shell grep ^VersionDate   $(PROG) | sed 's/.*=//')
+VersionNumber := $(shell grep ^VersionNumber $(SRC) | sed 's/.*=//')
+VersionDate   := $(shell grep ^VersionDate   $(SRC) | sed 's/.*=//')
 
 .PHONY: all
-all: man pdf
+all: $(PROG) man pdf
 
 .PHONY: shellcheck
 # SC2268 (style): Avoid x-prefix in comparisons
 # SC2181 (style): Check exit code directly
 shellcheck:
 	shellcheck -e SC2268,SC2181 on-all
+
+on_all: on-all
 
 .PHONY: install
 install: man
