@@ -15,12 +15,12 @@ all: $(PROG) man pdf
 shellcheck:
 	shellcheck -e SC2268,SC2181 on-all
 
-on-all: on-all.sh Makefile
-	cp on-all.sh on-all
-	chmod +x on-all
+$(PROG): $(SRC) Makefile
+	cp $(SRC) $(PROG)
+	chmod +x $(PROG)
 
 .PHONY: install
-install: man
+install: $(PROG) man
 	install -d ~/bin
 	install -m 755 -t ~/bin $(PROG)
 	install -d ~/share/man/man1
